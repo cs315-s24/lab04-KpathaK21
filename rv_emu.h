@@ -23,3 +23,13 @@ struct rv_state {
 void rv_init(struct rv_state *rsp, uint32_t *fp,
              uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3);
 int rv_emulate(struct rv_state *rsp);
+
+// Declare other functions defined in rv_emu.c
+void emu_r_type(struct rv_state *rsp, uint32_t iw);
+void emu_jalr(struct rv_state *rsp, uint32_t iw);
+void emu_i_type(struct rv_state *rsp, uint32_t iw);
+void emu_s_type(struct rv_state *rsp, uint32_t iw);
+void emu_b_type(struct rv_state *rsp, uint32_t iw);
+void emu_u_type(struct rv_state *rsp, uint32_t iw);
+void emu_j_type(struct rv_state *rsp, uint32_t iw);
+void rv_one(struct rv_state *rsp);
