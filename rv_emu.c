@@ -5,7 +5,7 @@
 
 #include "rv_emu.h"
 
-
+#define MEMORY 2147483647
 
 void unsupported(char *s, uint32_t val) {
     printf("%s: %d\n", s, val);
@@ -91,6 +91,19 @@ switch (opcode) {
         case 0b011: // li
         	rsp->regs[rd] = imm;
         	break;
+        case 0b100: // andi
+            rsp->regs[rd] = rsp->regs[rs1] & imm;
+            break;
+        case 0b000: // slli
+            rsp->regs[rd] = rsp->regs[rs1] << imm;
+            break;
+        case 0b110: // jal
+            rsp->regs[rd] = rsp->pc + 4;
+            rsp->pc += imm;
+            break;
+       case 0b111: // mv
+            rsp->regs[rd] = rsp->regs[rs1];
+            break;
         default:
             unsupported("Unsupported I-type instruction", opcode);
             break;
@@ -133,13 +146,23 @@ switch (opcode) {
                 rsp->pc += imm;
             }
             break;
-        case 0b100: // BLT
+        case 0b100: // BLT (signed comparison)
             if ((int32_t)rsp->regs[rs1] < (int32_t)rsp->regs[rs2]) {
                 rsp->pc += imm;
             }
             break;
-        case 0b101: // BGE
+        case 0b101: // BGE (signed comparison)
             if ((int32_t)rsp->regs[rs1] >= (int32_t)rsp->regs[rs2]) {
+                rsp->pc += imm;
+            }
+            break;
+        case 0b110: // BLTU (unsigned comparison)
+            if (rsp->regs[rs1] < rsp->regs[rs2]) {
+                rsp->pc += imm;
+            }
+            break;
+        case 0b111: // BGEU (unsigned comparison)
+            if (rsp->regs[rs1] >= rsp->regs[rs2]) {
                 rsp->pc += imm;
             }
             break;
@@ -196,7 +219,8 @@ void rv_one(struct rv_state *rsp) {
 
    uint32_t opcode = iw & 0b1111111;
     switch (opcode) {
-        case 0b0110011:
+
+		 case 0b0110011:
             // R-type instructions have two register operands
             emu_r_type(rsp, iw);
             break;
@@ -208,15 +232,27 @@ void rv_one(struct rv_state *rsp) {
             // S-type instructions have two register operands and an immediate value
             emu_s_type(rsp, iw);
             break;
-        case 0b1100011:
-            // B-type instructions have two register operands and a PC-relative immediate value
-            emu_b_type(rsp, iw);
-            break;
+       case 0b1100011: // B-type instructions
+            // Extract fields from the instruction word
+            uint32_t rs1 = (iw >> 15) & 0b11111;
+            uint32_t rs2 = (iw >> 20) & 0b11111;
+            int32_t imm = ((iw >> 31) << 12) | (((iw >> 7) & 0x1) << 11) |
+                          (((iw >> 25) & 0x3F) << 5) | (((iw >> 8) & 0xF) << 1);
+
+            // Perform the branch if greater than operation
+            if (rsp->regs[rs1] > rsp->regs[rs2]) {
+                rsp->pc += imm;
+                           emu_b_type(rsp, iw);
+            } else {
+                rsp->pc += 4; // Next instruction
+            }
+  
+            break; 
         case 0b1100111:
             emu_jalr(rsp, iw); // Handle JALR instruction
             break;
-        case 0b0010011:
-            emu_i_type(rsp, iw); // Handle I-type instructions (including LUI)
+       case 0b0010011: // I-type instructions
+            emu_i_type(rsp, iw);
             break;
         case 0b0110111:
             // U-type instructions have one register operand and an immediate value
@@ -226,8 +262,14 @@ void rv_one(struct rv_state *rsp) {
             // J-type instructions have one register operand and a PC-relative immediate value
             emu_j_type(rsp, iw);
             break;
+        case 0b1111001: // mv instruction
+            emu_i_type(rsp, iw);
+            break;
+      case 0: // End of program
+            rsp->pc = 0; // Terminate program execution
+            break;
         default:
-            unsupported("Unknown opcode: ", opcode);
+            unsupported("Unknown opcode: ", opcode); 
     }
 }
 
